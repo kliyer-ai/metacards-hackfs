@@ -12,14 +12,34 @@
         <v-card-subtitle> {{ description }} </v-card-subtitle>
 
         <v-card-text>
-          <p>Availble x/{{ this.total }}</p>
+          <p>Minted: {{ totalMinted }}/{{ this.totalSupply }}</p>
         </v-card-text>
 
         <v-card-actions>
-          <v-btn @click="mint"> Buy for {{ price }}</v-btn>
+          <v-btn v-if="hasValidKey" disabled
+            >You already have a valid Metacard!</v-btn
+          >
+          <v-btn v-else-if="totalMinted < totalSupply" @click="mint">
+            Buy / Mint for {{ price }}</v-btn
+          >
+          <v-btn v-else disabled>Sold out!</v-btn>
         </v-card-actions>
       </v-card>
     </v-col>
+
+    <v-dialog v-model="dialog" width="300px">
+      <v-card dark>
+        <v-card-title>Minting... </v-card-title>
+        <v-card-text>
+          <h3 v-if="success">Success!</h3>
+          <h3 v-else-if="error">There was an error...</h3>
+          <v-progress-linear indeterminate v-else></v-progress-linear>
+        </v-card-text>
+        <v-card-actions v-if="success || error">
+          <v-btn @click="dialog = false"> Close </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-row>
 </template>
 
@@ -43,21 +63,28 @@ export default {
       lockContract: null,
       priceRaw: 0.0,
       price: '',
-      total: 0,
+      totalSupply: 0,
+      dialog: false,
+      totalMinted: 0,
+      hasValidKey: false,
+      success: false,
+      error: false,
     }
   },
-  asyncData({ params }) {
+  asyncData({ params, $provider }) {
     const contractAddress = params.address
-    return { contractAddress }
+
+    const lockContract = new ethers.Contract(
+      contractAddress,
+      abis.PublicLock.abi,
+      $provider
+    )
+
+    return { contractAddress, lockContract }
   },
   methods: {
     async loadData() {
       this.loading = true
-      this.lockContract = new ethers.Contract(
-        this.contractAddress,
-        abis.PublicLock.abi,
-        this.$provider
-      )
 
       const tokenURI = await this.lockContract.tokenURI(1)
       const url = toGatewayURL(tokenURI)
@@ -66,24 +93,46 @@ export default {
 
       this.priceRaw = await this.lockContract.keyPrice()
       this.price = ethers.utils.formatEther(this.priceRaw)
-      this.total = await this.lockContract.maxNumberOfKeys()
+      this.totalSupply = await this.lockContract.maxNumberOfKeys()
       this.name = metadata.name
       this.description = metadata.description
       this.imgURL = String(toGatewayURL(metadata.image))
+
+      const filter = this.lockContract.filters.Transfer(
+        ethers.constants.AddressZero,
+        null
+      )
+      const events = await this.lockContract.queryFilter(filter)
+      this.totalMinted = events.length
+      this.lockContract.on(filter, (from, to, amount, event) => {
+        this.totalMinted++
+      })
+
+      this.hasValidKey = this.lockContract.getHasValidKey(
+        this.$signer.getAddress()
+      )
+
       this.loading = false
     },
 
     async mint() {
-      const signerAddress = this.$signer.getAddress()
-      const lockWithSigner = this.lockContract.connect(this.$signer)
-      const tx = await lockWithSigner.purchase(
-        this.priceRaw, // price
-        signerAddress, // recipient
-        signerAddress, // referrer - same as recipient for now
-        0, // data
-        { value: this.priceRaw }
-      )
-      console.log(tx)
+      this.dialog = true
+      try {
+        const signerAddress = this.$signer.getAddress()
+        const lockWithSigner = this.lockContract.connect(this.$signer)
+        const tx = await lockWithSigner.purchase(
+          this.priceRaw, // price
+          signerAddress, // recipient
+          signerAddress, // referrer - same as recipient for now
+          0, // data
+          { value: this.priceRaw }
+        )
+        await tx.wait()
+        this.hasValidKey = true
+        this.success = true
+      } catch (error) {
+        this.error = true
+      }
     },
   },
   mounted() {
