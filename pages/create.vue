@@ -43,7 +43,7 @@
         <div class="preview-lower-title">{{ lowerTitle }}</div>
       </div>
     </v-col>
-    <v-dialog v-model="loading" persistent>
+    <v-dialog v-model="loading" persistent width="500px">
       <v-card dark>
         <v-card-title>{{
           !error ? 'Creating your Metacard...' : 'There was an error...'
@@ -82,7 +82,7 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="success">
+    <v-dialog v-model="success" width="500px">
       <v-card dark>
         <v-card-title>Your cards were created!</v-card-title>
         <v-card-text>

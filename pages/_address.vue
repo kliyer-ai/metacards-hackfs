@@ -27,7 +27,7 @@
       </v-card>
     </v-col>
 
-    <v-dialog v-model="dialog" width="300px">
+    <v-dialog v-model="openDialog" width="500px">
       <v-card dark>
         <v-card-title>Minting... </v-card-title>
         <v-card-text>
@@ -64,7 +64,7 @@ export default {
       priceRaw: 0.0,
       price: '',
       totalSupply: 0,
-      dialog: false,
+      openDialog: false,
       totalMinted: 0,
       hasValidKey: false,
       success: false,
@@ -116,7 +116,7 @@ export default {
     },
 
     async mint() {
-      this.dialog = true
+      this.openDialog = true
       try {
         const signerAddress = this.$signer.getAddress()
         const lockWithSigner = this.lockContract.connect(this.$signer)
