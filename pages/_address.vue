@@ -28,7 +28,7 @@
       </v-card>
     </v-col>
 
-    <v-dialog v-model="openDialog" width="500px">
+    <v-dialog v-model="openDialog" width="500px" persistent>
       <v-card dark>
         <v-card-title>Minting... </v-card-title>
         <v-card-text>
@@ -75,7 +75,6 @@ export default {
       provider: null,
       signer: null,
       chainId: 0,
-      connected: false,
     }
   },
   asyncData({ params }) {
@@ -85,18 +84,18 @@ export default {
   middleware: 'ethDetected',
   methods: {
     async connect() {
-      this.connected = false
       const { provider, signer, chainId, updateOnChainChange } =
         await connectProvider()
       this.provider = provider
       this.signer = signer
       this.chainId = chainId
-      this.connected = true
       updateOnChainChange()
     },
 
     async loadData() {
       this.loading = true
+
+      await this.connect()
 
       this.lockContract = new ethers.Contract(
         this.contractAddress,
@@ -116,17 +115,17 @@ export default {
       this.description = metadata.description
       this.imgURL = String(toGatewayURL(metadata.image))
 
-      const filter = this.lockContract.filters.Transfer(
-        ethers.constants.AddressZero,
-        null
-      )
-      const events = await this.lockContract.queryFilter(filter)
-      this.totalMinted = events.length
-      this.lockContract.on(filter, (from, to, amount, event) => {
-        this.totalMinted++
-      })
+      // const filter = this.lockContract.filters.Transfer(
+      //   ethers.constants.AddressZero,
+      //   null
+      // )
+      // const events = await this.lockContract.queryFilter(filter)
+      // this.totalMinted = events.length
+      // this.lockContract.on(filter, (from, to, amount, event) => {
+      //   this.totalMinted++
+      // })
 
-      this.hasValidKey = this.lockContract.getHasValidKey(
+      this.hasValidKey = await this.lockContract.getHasValidKey(
         this.signer.getAddress()
       )
 

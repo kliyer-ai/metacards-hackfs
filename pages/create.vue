@@ -30,7 +30,6 @@
             type="number"
             :label="`Price per card in ${chainId == 137 ? 'Matic' : 'Eth'}`"
           ></v-text-field>
-          {{ chainId }}
         </v-card-text>
         <v-card-actions>
           <v-btn @click="create"
