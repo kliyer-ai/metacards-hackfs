@@ -11,6 +11,7 @@
           ></v-file-input>
           <v-text-field v-model="upperTitle" label="Upper Title"></v-text-field>
           <v-text-field v-model="lowerTitle" label="Lower Title"></v-text-field>
+          <v-divider class="my-6"></v-divider>
           <v-text-field
             v-model="collectionName"
             label="Collection Name"
@@ -23,6 +24,11 @@
             v-model="quantity"
             type="number"
             label="Quantity"
+          ></v-text-field>
+          <v-text-field
+            v-model="price"
+            type="number"
+            label="Price per card in currency of active chain, e.g. eth or matic"
           ></v-text-field>
         </v-card-text>
         <v-card-actions>
@@ -37,29 +43,61 @@
         <div class="preview-lower-title">{{ lowerTitle }}</div>
       </div>
     </v-col>
-    <v-dialog v-model="loading" persistent width="300">
-      <v-card color="primary" dark>
-        <v-card-title>Creating your Metacard...</v-card-title>
+    <v-dialog v-model="loading" persistent>
+      <v-card dark>
+        <v-card-title>{{
+          !error ? 'Creating your Metacard...' : 'There was an error...'
+        }}</v-card-title>
         <v-card-text>
           <v-timeline dense>
             <v-slide-x-reverse-transition group hide-on-leave>
               <v-timeline-item
-                v-for="task in tasks.slice(currentTask).reverse()"
+                v-for="task in tasks.slice(0, currentTask).reverse()"
                 :key="task.id"
-                color="blue"
-                small
                 fill-dot
+                color="white"
               >
+                <template v-slot:icon>
+                  <v-icon v-if="error" color="red" dark large>
+                    mdi-exclamation-thick
+                  </v-icon>
+                  <v-progress-circular
+                    v-else-if="task.id == currentTask"
+                    indeterminate
+                    color="blue"
+                  ></v-progress-circular>
+
+                  <v-icon v-else dark large color="green">
+                    mdi-check-bold
+                  </v-icon>
+                </template>
                 {{ task.description }}
               </v-timeline-item>
             </v-slide-x-reverse-transition>
           </v-timeline>
-          <v-progress-linear
-            indeterminate
-            color="white"
-            class="mb-0"
-          ></v-progress-linear>
         </v-card-text>
+        <v-card-actions>
+          <v-btn v-if="error" @click="loading = false"> Close </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="success">
+      <v-card dark>
+        <v-card-title>Your cards were created!</v-card-title>
+        <v-card-text>
+          <v-btn :to="`/${newLockAddress}`" nuxt> Mint your cards here </v-btn>
+          <br />
+          <v-btn
+            href="https://app.unlock-protocol.com/dashboard"
+            target="_blanc"
+          >
+            View your cards on Unlock</v-btn
+          >
+        </v-card-text>
+        <v-card-actions>
+          <v-btn @click="success = false"> Close </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-row>
@@ -83,13 +121,17 @@ export default {
   data() {
     return {
       loading: false,
+      success: true,
       input: null,
       upperTitle: '',
       lowerTitle: '',
       collectionName: '',
       collectionDescription: '',
       quantity: 1,
+      price: 0.01,
       currentTask: 1,
+      errorAtTask: 0,
+      newLockAddress: 'adsf',
       tasks: [
         {
           id: 1,
@@ -112,6 +154,9 @@ export default {
   },
 
   computed: {
+    error() {
+      return this.currentTask === this.errorAtTask
+    },
     image() {
       if (!this.input) return null
       return URL.createObjectURL(this.input)
@@ -119,6 +164,10 @@ export default {
   },
 
   methods: {
+    errorHandler(e) {
+      this.errorAtTask = this.currentTask
+    },
+
     async create() {
       this.loading = true
       const canvas = await html2canvas(document.querySelector('#capture'), {
@@ -126,74 +175,80 @@ export default {
       })
 
       canvas.toBlob(async (blob) => {
-        // Upload image ============
-        const cidImage = await client.storeBlob(blob)
-        console.log(`image cid ${cidImage}`)
+        try {
+          // Upload image ============
+          const cidImage = await client.storeBlob(blob)
+          console.log(`image cid ${cidImage}`)
+          // =========================
 
-        // =========================
+          this.currentTask++
 
-        this.currentTask++
+          // Upload metadata ==============
 
-        // Upload metadata ==============
+          const fileList = []
+          for (let i = 1; i <= this.quantity; i++) {
+            const metadataFile = new File(
+              [
+                JSON.stringify({
+                  name: `${this.collectionName} #${i}`,
+                  description: this.description,
+                  image: `ipfs://${cidImage}`,
+                }),
+              ],
+              String(i) // file name
+            )
+            fileList.push(metadataFile)
+          }
+          console.log(`file list ${fileList}`)
+          const cidBaseURI = await client.storeDirectory(fileList)
 
-        const fileList = []
-        for (let i = 1; i <= this.quantity; i++) {
-          const metadataFile = new File(
-            [
-              JSON.stringify({
-                name: `${this.collectionName} #${i}`,
-                description: this.description,
-                image: `ipfs://${cidImage}`,
-              }),
-            ],
-            String(i) // file name
+          console.log(`base URI ${cidBaseURI}`)
+          // =========================
+
+          this.currentTask++
+
+          // create lock ================
+          const unlockContract = new ethers.Contract(
+            unlockAddress,
+            abis.Unlock.abi,
+            this.$provider
           )
-          fileList.push(metadataFile)
+          const unlockWithSigner = unlockContract.connect(this.$signer)
+          const txCreateLock = await unlockWithSigner.createLock(
+            31536000, // expiration duration in seconds - now it's a year
+            '0x0000000000000000000000000000000000000000', // ERC20 token address - 0 for Ether
+            ethers.utils.parseEther(String(this.price)), // price
+            this.quantity, // number of keys
+            this.collectionName, // name
+            '0x' + Crypto.randomBytes(12).toString('hex') // user specific salt
+          )
+          const res = await txCreateLock.wait()
+          const newLockAddress = res.events[0].args.newLockAddress
+          this.newLockAddress = newLockAddress
+          console.log(`new lock address ${newLockAddress}`)
+          // ============================
+
+          this.currentTask++
+
+          // set base uri of lock ================
+          const lockContract = new ethers.Contract(
+            newLockAddress,
+            abis.PublicLock.abi,
+            this.$provider
+          )
+          const lockWithSigner = lockContract.connect(this.$signer)
+
+          const txChangeURI = await lockWithSigner.setBaseTokenURI(
+            `ipfs://${cidBaseURI}/`
+          )
+          console.log(txChangeURI)
+          await txChangeURI.wait()
+          // ===========================
+          this.loading = false
+          this.success = true
+        } catch (error) {
+          this.errorHandler(error)
         }
-        console.log(`file list ${fileList}`)
-        const cidBaseURI = await client.storeDirectory(fileList)
-        console.log(`base URI ${cidBaseURI}`)
-        // =========================
-
-        this.currentTask++
-
-        // create lock ================
-        const unlockContract = new ethers.Contract(
-          unlockAddress,
-          abis.Unlock.abi,
-          this.$provider
-        )
-        const unlockWithSigner = unlockContract.connect(this.$signer)
-        const txCreateLock = await unlockWithSigner.createLock(
-          31536000, // expiration duration in seconds - now it's a year
-          '0x0000000000000000000000000000000000000000', // ERC20 token address - 0 for Ether
-          ethers.utils.parseEther('0.001'), // price
-          this.quantity, // number of keys
-          this.collectionName, // name
-          '0x' + Crypto.randomBytes(12).toString('hex') // user specific salt
-        )
-        const res = await txCreateLock.wait()
-        const newLockAddress = res.events[0].args.newLockAddress
-        console.log(`new lock address ${newLockAddress}`)
-        // ============================
-
-        this.currentTask++
-
-        // set base uri of lock ================
-        const lockContract = new ethers.Contract(
-          newLockAddress,
-          abis.PublicLock.abi,
-          this.$provider
-        )
-        const lockWithSigner = lockContract.connect(this.$signer)
-
-        const txChangeURI = await lockWithSigner.setBaseTokenURI(
-          `ipfs://${cidBaseURI}/`
-        )
-        console.log(txChangeURI)
-        await txChangeURI.wait()
-        // ===========================
-        this.loading = false
       })
     },
   },
