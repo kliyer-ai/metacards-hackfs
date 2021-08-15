@@ -20,7 +20,8 @@
             >You already have a valid Metacard!</v-btn
           >
           <v-btn v-else-if="totalMinted < totalSupply" @click="mint">
-            Buy / Mint for {{ price }}</v-btn
+            Buy / Mint for {{ price }}
+            {{ chainId == 137 ? 'Matic' : 'Eth' }}</v-btn
           >
           <v-btn v-else disabled>Sold out!</v-btn>
         </v-card-actions>
@@ -47,6 +48,8 @@
 import { ethers } from 'ethers'
 import { toGatewayURL } from 'nft.storage'
 import abis from '~/assets/abis'
+import connectProvider from '~/services/provider'
+// import { chainIdName } from '~/assets/networks'
 
 // const Crypto = require('crypto')
 
@@ -69,22 +72,37 @@ export default {
       hasValidKey: false,
       success: false,
       error: false,
+      provider: null,
+      signer: null,
+      chainId: 0,
+      connected: false,
     }
   },
-  asyncData({ params, $provider }) {
+  asyncData({ params }) {
     const contractAddress = params.address
-
-    const lockContract = new ethers.Contract(
-      contractAddress,
-      abis.PublicLock.abi,
-      $provider
-    )
-
-    return { contractAddress, lockContract }
+    return { contractAddress }
   },
+  middleware: 'ethDetected',
   methods: {
+    async connect() {
+      this.connected = false
+      const { provider, signer, chainId, updateOnChainChange } =
+        await connectProvider()
+      this.provider = provider
+      this.signer = signer
+      this.chainId = chainId
+      this.connected = true
+      updateOnChainChange()
+    },
+
     async loadData() {
       this.loading = true
+
+      this.lockContract = new ethers.Contract(
+        this.contractAddress,
+        abis.PublicLock.abi,
+        this.provider
+      )
 
       const tokenURI = await this.lockContract.tokenURI(1)
       const url = toGatewayURL(tokenURI)
@@ -109,7 +127,7 @@ export default {
       })
 
       this.hasValidKey = this.lockContract.getHasValidKey(
-        this.$signer.getAddress()
+        this.signer.getAddress()
       )
 
       this.loading = false
@@ -118,8 +136,8 @@ export default {
     async mint() {
       this.openDialog = true
       try {
-        const signerAddress = this.$signer.getAddress()
-        const lockWithSigner = this.lockContract.connect(this.$signer)
+        const signerAddress = this.signer.getAddress()
+        const lockWithSigner = this.lockContract.connect(this.signer)
         const tx = await lockWithSigner.purchase(
           this.priceRaw, // price
           signerAddress, // recipient

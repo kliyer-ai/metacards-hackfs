@@ -28,11 +28,17 @@
           <v-text-field
             v-model="price"
             type="number"
-            label="Price per card in currency of active chain, e.g. eth or matic"
+            :label="`Price per card in ${chainId == 137 ? 'Matic' : 'Eth'}`"
           ></v-text-field>
+          {{ chainId }}
         </v-card-text>
         <v-card-actions>
-          <v-btn @click="create">Create Metacards!</v-btn>
+          <v-btn @click="create"
+            >Create Metacards on
+            {{
+              chainIdName[chainId] ? chainIdName[chainId] : 'Unknown'
+            }}!</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-col>
@@ -108,18 +114,19 @@ import { ethers } from 'ethers'
 import html2canvas from 'html2canvas'
 import { NFTStorage, File } from 'nft.storage'
 import abis from '~/assets/abis'
+import connectProvider from '~/services/provider'
+import { unlockAddresses, chainIdName } from '~/assets/networks'
 
 const Crypto = require('crypto')
 
-const unlockAddress = '0xD8C88BE5e8EB88E38E6ff5cE186d764676012B0b'
-
 const apiKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEE5MzRCNGZiNTREOGFCMDk5NzY4NzU5YjU5OWYwYWI5Mjc3NGYyOUMiLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTYyOTAyNzk0OTE2NywibmFtZSI6InRlc3QxIn0.hcSZGnoE_869djkseR4e19i9mk3qBlbwrytL43Hvawk'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEE5MzRCNGZiNTREOGFCMDk5NzY4NzU5YjU5OWYwYWI5Mjc3NGYyOUMiLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTYyOTA0NzcyMzk0MSwibmFtZSI6ImFzZGZzYWYifQ.sFlkePbfV7ayYupL6JJER2utyQLY5UrSelHxWPHv7FM'
 const client = new NFTStorage({ token: apiKey })
 
 export default {
   data() {
     return {
+      chainIdName,
       loading: false,
       success: false,
       input: null,
@@ -132,6 +139,10 @@ export default {
       currentTask: 1,
       errorAtTask: 0,
       newLockAddress: '',
+      provider: null,
+      signer: null,
+      chainId: 0,
+      connected: false,
       tasks: [
         {
           id: 1,
@@ -152,7 +163,7 @@ export default {
       ],
     }
   },
-
+  middleware: 'ethDetected',
   computed: {
     error() {
       return this.currentTask === this.errorAtTask
@@ -163,13 +174,29 @@ export default {
     },
   },
 
+  mounted() {
+    this.connect()
+  },
+
   methods: {
+    async connect() {
+      this.connected = false
+      const { provider, signer, chainId, updateOnChainChange } =
+        await connectProvider()
+      this.provider = provider
+      this.signer = signer
+      this.chainId = chainId
+      this.connected = true
+      updateOnChainChange()
+    },
+
     errorHandler(e) {
       this.errorAtTask = this.currentTask
     },
 
     async create() {
       this.loading = true
+
       const canvas = await html2canvas(document.querySelector('#capture'), {
         allowTaint: true,
       })
@@ -209,11 +236,11 @@ export default {
 
           // create lock ================
           const unlockContract = new ethers.Contract(
-            unlockAddress,
+            unlockAddresses[this.chainId],
             abis.Unlock.abi,
-            this.$provider
+            this.provider
           )
-          const unlockWithSigner = unlockContract.connect(this.$signer)
+          const unlockWithSigner = unlockContract.connect(this.signer)
           const txCreateLock = await unlockWithSigner.createLock(
             31536000, // expiration duration in seconds - now it's a year
             '0x0000000000000000000000000000000000000000', // ERC20 token address - 0 for Ether
@@ -234,9 +261,9 @@ export default {
           const lockContract = new ethers.Contract(
             newLockAddress,
             abis.PublicLock.abi,
-            this.$provider
+            this.provider
           )
-          const lockWithSigner = lockContract.connect(this.$signer)
+          const lockWithSigner = lockContract.connect(this.signer)
 
           const txChangeURI = await lockWithSigner.setBaseTokenURI(
             `ipfs://${cidBaseURI}/`
