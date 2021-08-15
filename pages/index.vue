@@ -121,7 +121,7 @@ export default {
   data() {
     return {
       loading: false,
-      success: true,
+      success: false,
       input: null,
       upperTitle: '',
       lowerTitle: '',
@@ -131,7 +131,7 @@ export default {
       price: 0.01,
       currentTask: 1,
       errorAtTask: 0,
-      newLockAddress: 'adsf',
+      newLockAddress: '',
       tasks: [
         {
           id: 1,
