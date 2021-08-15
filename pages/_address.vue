@@ -19,9 +19,12 @@
           <v-btn v-if="hasValidKey" disabled
             >You already have a valid Metacard!</v-btn
           >
-          <v-btn v-else-if="totalMinted < totalSupply" @click="mint">
-            Buy / Mint for {{ price }}
-            {{ chainId == 137 ? 'Matic' : 'Eth' }}</v-btn
+          <v-btn
+            v-else-if="totalMinted < totalSupply"
+            @click="mint"
+            color="primary"
+          >
+            Mint for {{ price }} {{ chainId == 137 ? 'Matic' : 'Eth' }}</v-btn
           >
           <v-btn v-else disabled>Sold out!</v-btn>
         </v-card-actions>
@@ -37,7 +40,7 @@
           <v-progress-linear indeterminate v-else></v-progress-linear>
         </v-card-text>
         <v-card-actions v-if="success || error">
-          <v-btn @click="openDialog = false"> Close </v-btn>
+          <v-btn @click="openDialog = false" color="primary"> Close </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

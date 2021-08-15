@@ -32,7 +32,7 @@
           ></v-text-field>
         </v-card-text>
         <v-card-actions>
-          <v-btn @click="create"
+          <v-btn @click="create" color="primary"
             >Create Metacards on
             {{
               chainIdName[chainId] ? chainIdName[chainId] : 'Unknown'
@@ -101,7 +101,7 @@
           >
         </v-card-text>
         <v-card-actions>
-          <v-btn @click="success = false"> Close </v-btn>
+          <v-btn @click="success = false" color="primary"> Close </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
