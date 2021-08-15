@@ -5,23 +5,23 @@
         <v-card-title> Information </v-card-title>
         <v-card-text>
           <v-file-input
+            v-model="input"
             accept="image/*"
             label="Image input"
-            v-model="input"
           ></v-file-input>
-          <v-text-field label="Upper Title" v-model="upperTitle"></v-text-field>
-          <v-text-field label="Lower Title" v-model="lowerTitle"></v-text-field>
+          <v-text-field v-model="upperTitle" label="Upper Title"></v-text-field>
+          <v-text-field v-model="lowerTitle" label="Lower Title"></v-text-field>
           <v-text-field
-            label="Collection Name"
             v-model="collectionName"
+            label="Collection Name"
           ></v-text-field>
           <v-text-field
-            label="Collection Description"
             v-model="collectionDescription"
+            label="Collection Description"
           ></v-text-field>
           <v-text-field
-            type="number"
             v-model="quantity"
+            type="number"
             label="Quantity"
           ></v-text-field>
         </v-card-text>
@@ -37,10 +37,23 @@
         <div class="preview-lower-title">{{ lowerTitle }}</div>
       </div>
     </v-col>
-    <v-dialog v-model="loading" hide-overlay persistent width="300">
+    <v-dialog v-model="loading" persistent width="300">
       <v-card color="primary" dark>
+        <v-card-title>Creating your Metacard...</v-card-title>
         <v-card-text>
-          Please stand by
+          <v-timeline dense>
+            <v-slide-x-reverse-transition group hide-on-leave>
+              <v-timeline-item
+                v-for="task in tasks.slice(currentTask).reverse()"
+                :key="task.id"
+                color="blue"
+                small
+                fill-dot
+              >
+                {{ task.description }}
+              </v-timeline-item>
+            </v-slide-x-reverse-transition>
+          </v-timeline>
           <v-progress-linear
             indeterminate
             color="white"
@@ -76,7 +89,33 @@ export default {
       collectionName: '',
       collectionDescription: '',
       quantity: 1,
+      currentTask: 1,
+      tasks: [
+        {
+          id: 1,
+          description: 'Uploading your card to IPFS...',
+        },
+        {
+          id: 2,
+          description: 'Creating and uploading metadata...',
+        },
+        {
+          id: 3,
+          description: 'Creating your contract...',
+        },
+        {
+          id: 4,
+          description: 'Connecting contract to metadata...',
+        },
+      ],
     }
+  },
+
+  computed: {
+    image() {
+      if (!this.input) return null
+      return URL.createObjectURL(this.input)
+    },
   },
 
   methods: {
@@ -87,6 +126,38 @@ export default {
       })
 
       canvas.toBlob(async (blob) => {
+        // Upload image ============
+        const cidImage = await client.storeBlob(blob)
+        console.log(`image cid ${cidImage}`)
+
+        // =========================
+
+        this.currentTask++
+
+        // Upload metadata ==============
+
+        const fileList = []
+        for (let i = 1; i <= this.quantity; i++) {
+          const metadataFile = new File(
+            [
+              JSON.stringify({
+                name: `${this.collectionName} #${i}`,
+                description: this.description,
+                image: `ipfs://${cidImage}`,
+              }),
+            ],
+            String(i) // file name
+          )
+          fileList.push(metadataFile)
+        }
+        console.log(`file list ${fileList}`)
+        const cidBaseURI = await client.storeDirectory(fileList)
+        console.log(`base URI ${cidBaseURI}`)
+        // =========================
+
+        this.currentTask++
+
+        // create lock ================
         const unlockContract = new ethers.Contract(
           unlockAddress,
           abis.Unlock.abi,
@@ -104,30 +175,11 @@ export default {
         const res = await txCreateLock.wait()
         const newLockAddress = res.events[0].args.newLockAddress
         console.log(`new lock address ${newLockAddress}`)
+        // ============================
 
-        const cidImage = await client.storeBlob(blob)
-        console.log(`image cid ${cidImage}`)
-        const fileList = []
-        for (let i = 1; i <= this.quantity; i++) {
-          const metadataFile = new File(
-            [
-              JSON.stringify({
-                name: `${this.collectionName} #${i}`,
-                description: this.description,
-                image: `ipfs://${cidImage}`,
-              }),
-            ],
-            String(i) // file name
-          )
-          fileList.push(metadataFile)
-        }
+        this.currentTask++
 
-        console.log(`file list ${fileList}`)
-
-        const cidBaseURI = await client.storeDirectory(fileList)
-
-        console.log(`base URI ${cidBaseURI}`)
-
+        // set base uri of lock ================
         const lockContract = new ethers.Contract(
           newLockAddress,
           abis.PublicLock.abi,
@@ -140,15 +192,9 @@ export default {
         )
         console.log(txChangeURI)
         await txChangeURI.wait()
+        // ===========================
         this.loading = false
       })
-    },
-  },
-
-  computed: {
-    image() {
-      if (!this.input) return null
-      return URL.createObjectURL(this.input)
     },
   },
 }
