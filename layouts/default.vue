@@ -20,6 +20,7 @@
     </v-navigation-drawer>
     <v-app-bar fixed app>
       <v-app-bar-nav-icon @click.stop="drawer = !drawer" />
+      <v-img class="mx-2" :src="logo" max-height="40" contain></v-img>
     </v-app-bar>
     <v-main>
       <v-container>
@@ -34,9 +35,12 @@
 </template>
 
 <script>
+import logo from '~/assets/metacards-logo.png'
+
 export default {
   data() {
     return {
+      logo,
       drawer: false,
       items: [
         {

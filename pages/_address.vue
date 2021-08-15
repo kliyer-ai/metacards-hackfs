@@ -37,7 +37,7 @@
           <v-progress-linear indeterminate v-else></v-progress-linear>
         </v-card-text>
         <v-card-actions v-if="success || error">
-          <v-btn @click="dialog = false"> Close </v-btn>
+          <v-btn @click="openDialog = false"> Close </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

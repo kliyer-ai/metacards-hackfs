@@ -69,7 +69,7 @@
                   <v-progress-circular
                     v-else-if="task.id == currentTask"
                     indeterminate
-                    color="blue"
+                    color="primary"
                   ></v-progress-circular>
 
                   <v-icon v-else dark large color="green">
@@ -92,12 +92,12 @@
         <v-card-title>Your cards were created!</v-card-title>
         <v-card-text>
           <v-btn :to="`/${newLockAddress}`" nuxt> Mint your cards here </v-btn>
-          <br />
+          <div class="py-1"></div>
           <v-btn
             href="https://app.unlock-protocol.com/dashboard"
             target="_blanc"
           >
-            View your cards on Unlock</v-btn
+            View your cards on Unlock Protocol</v-btn
           >
         </v-card-text>
         <v-card-actions>
