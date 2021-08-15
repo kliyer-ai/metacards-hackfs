@@ -11,7 +11,13 @@
 
         <v-card-subtitle> {{ description }} </v-card-subtitle>
 
-        <v-card-actions> </v-card-actions>
+        <v-card-text>
+          <p>Availble x/{{ this.total }}</p>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-btn @click="mint"> Buy for {{ price }}</v-btn>
+        </v-card-actions>
       </v-card>
     </v-col>
   </v-row>
@@ -35,18 +41,20 @@ export default {
       description: '',
       imgURL: '',
       lockContract: null,
+      priceRaw: 0.0,
+      price: '',
+      total: 0,
     }
   },
   asyncData({ params }) {
-    const address = params.address
-
-    return { address }
+    const contractAddress = params.address
+    return { contractAddress }
   },
   methods: {
     async loadData() {
       this.loading = true
       this.lockContract = new ethers.Contract(
-        this.address,
+        this.contractAddress,
         abis.PublicLock.abi,
         this.$provider
       )
@@ -56,6 +64,9 @@ export default {
       const res = await fetch(url)
       const metadata = await res.json()
 
+      this.priceRaw = await this.lockContract.keyPrice()
+      this.price = ethers.utils.formatEther(this.priceRaw)
+      this.total = await this.lockContract.maxNumberOfKeys()
       this.name = metadata.name
       this.description = metadata.description
       this.imgURL = String(toGatewayURL(metadata.image))
@@ -63,7 +74,16 @@ export default {
     },
 
     async mint() {
-      // const lockWithSigner = this.lockContract.connect(this.$signer)
+      const signerAddress = this.$signer.getAddress()
+      const lockWithSigner = this.lockContract.connect(this.$signer)
+      const tx = await lockWithSigner.purchase(
+        this.priceRaw, // price
+        signerAddress, // recipient
+        signerAddress, // referrer - same as recipient for now
+        0, // data
+        { value: this.priceRaw }
+      )
+      console.log(tx)
     },
   },
   mounted() {

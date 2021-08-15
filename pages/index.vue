@@ -114,7 +114,7 @@ const Crypto = require('crypto')
 const unlockAddress = '0xD8C88BE5e8EB88E38E6ff5cE186d764676012B0b'
 
 const apiKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEE5MzRCNGZiNTREOGFCMDk5NzY4NzU5YjU5OWYwYWI5Mjc3NGYyOUMiLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTYyODg2MzI5NDA1NywibmFtZSI6ImhhY2tmcyJ9.tzwHSj34yAD_SIju7vqQ2uUgehp73kjNrFcH185ARYg'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEE5MzRCNGZiNTREOGFCMDk5NzY4NzU5YjU5OWYwYWI5Mjc3NGYyOUMiLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTYyOTAyNzk0OTE2NywibmFtZSI6InRlc3QxIn0.hcSZGnoE_869djkseR4e19i9mk3qBlbwrytL43Hvawk'
 const client = new NFTStorage({ token: apiKey })
 
 export default {
